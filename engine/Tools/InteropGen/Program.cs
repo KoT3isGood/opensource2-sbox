@@ -75,4 +75,9 @@ public static class Program
 
 		Task.WaitAll( tasks.ToArray() );
 	}
+
+    static void Main(string[] args)
+    {
+		ProcessManifest( "engine", false );
+    }
 }

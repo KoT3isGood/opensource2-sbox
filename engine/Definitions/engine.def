@@ -8,9 +8,10 @@ exceptions	"Sandbox.Interop.BindingException"
 namespace "Managed.SandboxEngine"
 
 // Paths are relative to the def file
-cpp "../../src/engine2/interop.engine.cpp"
-hpp "../../src/engine2/interop.engine.h"
-cs	"../Sandbox.Engine/Interop.Engine.cs"
+cpp "../Sandbox.Engine/engine2/interop.engine.cpp"
+hpp "../Sandbox.Engine/engine2/interop.engine.h"
+// For opensource2
+cs	"../public/engine/engine2.h"
 
 
 include "dbg.h"

@@ -13,18 +13,20 @@ internal partial class ManagerWriter : BaseWriter
 	public override void Generate()
 	{
 		Header();
+		WriteLine( "#ifndef ENGINE_GEN_H" );
+		WriteLine( "#define ENGINE_GEN_H" );
 
 		HelperFunctions();
 
+		/*
 		Imports();
 		PointerStructs();
+		*/
 
-		StartBlock( $"namespace {definitions.ManagedNamespace}" );
-		{
-			Exports();
-			NativeInterop();
-		}
-		EndBlock();
+		//Exports();
+		NativeInterop();
+
+		WriteLine( "#endif ENGINE_GEN_H" );
 	}
 
 	private void Header()
@@ -35,18 +37,21 @@ internal partial class ManagerWriter : BaseWriter
 		WriteLine( "// the code is regenerated." );
 		WriteLine( "// </auto-generated>" );
 
-		WriteLine( "" );
 
+		/*
 		WriteLine( "using System;" );
 		WriteLine( "using System.Collections.Generic;" );
 		WriteLine( "using System.Runtime.CompilerServices;" );
 		WriteLine( "using System.Runtime.InteropServices;" );
-
+		
 		WriteLine( "" );
+		*/
+
 	}
 
 	private void HelperFunctions()
 	{
+		/*
 		StartBlock( $"internal static class {definitions.CustomNamespace}" );
 		{
 			StartBlock( "public static int Convert( Type t )" );
@@ -73,6 +78,7 @@ internal partial class ManagerWriter : BaseWriter
 			EndBlock();
 		}
 		EndBlock();
+		*/
 	}
 
 	private void NativeInterop()
@@ -80,183 +86,288 @@ internal partial class ManagerWriter : BaseWriter
 		IEnumerable<Function> exports = definitions.Classes.Where( x => x.Native == true ).SelectMany( x => x.Functions );
 		IEnumerable<Function> imports = definitions.Classes.Where( x => x.Native == false ).Where( x => !ShouldSkip( x ) ).SelectMany( x => x.Functions );
 
-		StartBlock( "internal unsafe static partial class NativeInterop" );
+		WriteLine( $"extern void *g_p{definitions.Ident}Library;" );
+		WriteLine( $"extern bool g_bIs{definitions.Ident}Initialized;" );
+		WriteLine();
+
+		/*
+		ErrorFunction();
+		*/
+		
+		WriteLine( "#include \"windows.h\" " );
+		WriteLine( "#include \"engine/structs.h\" " );
+		WriteLine( "#ifdef _WIN32" );
+		WriteLine( "#define CC __stdcall" );
+		WriteLine( "#else" );
+		WriteLine( "#define CC" );
+		WriteLine( "#endif" );
+		WriteLine();
+		WriteLine("template <typename A, typename Parent>");
+		StartBlock( $"class RWVariable" );
+		WriteLine("private:");
+		WriteLine("Parent *m_parent;");
+		WriteLine("A(*m_ReadOp)(Parent*);");
+		WriteLine("void(*m_WriteOp)(Parent*, A);");
+		WriteLine("public:");
+		StartBlock( $"RWVariable(void* WriteOp, void* ReadOp, Parent *parent)" );
+		WriteLine("m_ReadOp = (A(*)(Parent*))ReadOp;");
+		WriteLine("m_WriteOp = (void(*)(Parent*, A))WriteOp;");
+		WriteLine("m_parent = parent;");
+		EndBlock();
+		StartBlock( $"inline RWVariable& operator = (const A& other)" );
+		WriteLine("m_WriteOp( m_parent , other);");
+		WriteLine("return *this;");
+		EndBlock();
+		StartBlock( $"inline operator A()" );
+		WriteLine("return m_ReadOp( m_parent );");
+		EndBlock();
+		EndBlock(";");
+		WriteLine("#define RW_VAR(type, name, parent, readop, writeop) RWVariable<type, parent> name{readop, writeop,this};");
+
+		WriteLine();
 		{
-			WriteLine( "static IntPtr _nativeLibraryHandle;" );
-			WriteLine( "static bool _initialized;" );
-			WriteLine();
-
-			ErrorFunction();
-
-			WriteLine( "[UnmanagedFunctionPointer( CallingConvention.Cdecl )]" );
-			WriteLine( "delegate void NetCoreImportDelegate( int hash, void* imports, void* exports, int* structSizes );" );
-			WriteLine();
-
-			StartBlock( "internal static void Initialize()" );
-			{
-				WriteLine( "if ( _initialized ) return;" );
-				WriteLine();
-
-				WriteLine( $"if ( !NativeLibrary.TryLoad( System.IO.Path.Combine( NetCore.NativeDllPath, \"{definitions.NativeDll}\" ), out var nativeDll ) )" );
-				WriteLine( $"	Sandbox.Interop.NativeAssemblyLoadFailed( \"{definitions.NativeDll}\" );" );
-				WriteLine( "_nativeLibraryHandle = nativeDll;" );
-
-				WriteLine();
-				WriteLine( $"IntPtr nativeInitPtr = NativeLibrary.GetExport( nativeDll, \"igen_{definitions.Ident}\" );" );
-				WriteLine( $"if ( nativeInitPtr == IntPtr.Zero ) throw new System.Exception( \"Couldn't load from {definitions.NativeDll}\" );" );
-
-				WriteLine();
-				WriteLine( $"var nativeInit = Marshal.GetDelegateForFunctionPointer<NetCoreImportDelegate>( nativeInitPtr );" );
-				WriteLine( $"if ( nativeInit == null ) throw new System.Exception( \"Couldn't load from {definitions.NativeDll}\" );" );
-
-				int i = 0;
-
-				//
-				// Managed Functions
-				//
-				{
-					WriteLine();
-					WriteLine( $"var managedFunctions = new IntPtr[{imports.Count()}]" );
-					StartBlock( null );
-					foreach ( Function f in imports )
+			int c = definitions.Classes.Where( x => x.Native == true ).Where( x => !ShouldSkip( x ) ).Sum( x =>
 					{
-						Class c = f.Class;
-						IEnumerable<string> managedArgs = c.SelfArg( false, f.Static ).Concat( f.Parameters ).Concat( new[] { f.Return } ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetManagedDelegateType( true )}" );
-						string managedArgss = $"{string.Join( ", ", managedArgs )}";
+					int i = 0;
 
-						WriteLine( $"(IntPtr) (delegate* unmanaged<{managedArgss}>) &Exports.{f.MangledName}," );
+					Class bc = x.BaseClass;
+
+					while ( bc != null )
+					{
+					Class subclass = bc;
+					i += 2;
+					bc = bc.BaseClass;
 					}
-					EndBlock( ";" );
-				}
 
-				{
-					int c = definitions.Classes.Where( x => x.Native == true ).Where( x => !ShouldSkip( x ) ).Sum( x =>
-					{
-						int i = 0;
+					i += x.Functions.Count;
+					i += x.Variables.Count * 2;
 
-						Class bc = x.BaseClass;
-
-						while ( bc != null )
-						{
-							Class subclass = bc;
-							i += 2;
-							bc = bc.BaseClass;
-						}
-
-						i += x.Functions.Count;
-						i += x.Variables.Count * 2;
-
-						return i;
+					return i;
 
 					} );
 
-					c += 1;
+			c += 1;
 
-					WriteLine();
-					WriteLine( $"var nativeFunctions = new IntPtr[{c}];" );
-				}
+			WriteLine();
+			WriteLine( $"extern void *g_nativeFunctions[{c}];" );
+			WriteLine( $"extern void *g_callbackFunctions[80];" );
+		}
 
-				{
-					int c = definitions.Classes.Where( x => x.Native == true ).Where( x => !ShouldSkip( x ) ).Count();
-					WriteLine();
-					WriteLine( $"var structSizes = new int[]" );
-					StartBlock( null );
+		WriteLine( "typedef int(*FnBindingsImportDelegate)( int hash, void* imports, void* exports, int* structSizes );" );
+		WriteLine();
 
-					foreach ( Struct s in definitions.Structs )
-					{
-						if ( ShouldSkip( s ) )
-						{
-							continue;
-						}
+		int i = 0;
+		StartBlock( $"inline void {definitions.Ident}BindingsInitialize()" );
+		{
+			WriteLine( $"if ( g_bIs{definitions.Ident}Initialized ) return;" );
+			WriteLine();
 
-						string size_of = $"sizeof( {s.ManagedNameWithNamespace} )";
+			WriteLine( $"g_p{definitions.Ident}Library = LoadLibraryA(\"engine2.dll\");" );
+			WriteLine( $"if(!g_p{definitions.Ident}Library)" );
+			WriteLine( $"	_exit(1);" );
 
-						WriteLine( $"{size_of}," );
-						i++;
-					}
-					EndBlock( ";" );
-				}
+			WriteLine();
+			WriteLine( $"FnBindingsImportDelegate igen_{definitions.Ident} = (FnBindingsImportDelegate)GetProcAddress( (HMODULE)g_p{definitions.Ident}Library, \"igen_{definitions.Ident}\" );" );
+			WriteLine( $"if(!igen_{definitions.Ident})" );
+			WriteLine( $"	_exit(1);" );
 
+
+			//
+			// Managed Functions
+			//
+			{
 				WriteLine();
-				WriteLine();
-				WriteLine( "fixed ( void* m = managedFunctions )" );
-				WriteLine( "fixed ( void* n = nativeFunctions )" );
-				WriteLine( "fixed ( int* s = structSizes )" );
+				WriteLine( $"void *managedFunctions[{imports.Count()}] = " );
 				StartBlock( null );
-				WriteLine( $"nativeInit( {definitions.Hash}, m, n, s );" );
-				EndBlock();
-				WriteLine();
-
-				i = 1;
-				WriteLine( $"var onError = Marshal.GetDelegateForFunctionPointer<_ErrorFunction>( nativeFunctions[0] );" );
-				WriteLine();
-
-				StartBlock( "try" );
-
-				i = 1;
-				foreach ( Class c in definitions.Classes.Where( x => x.Native == true ) )
+				foreach ( Function f in imports )
 				{
-					if ( ShouldSkip( c ) )
+					Class c = f.Class;
+					IEnumerable<string> managedArgs = c.SelfArg( false, f.Static ).Concat( f.Parameters ).Concat( new[] { f.Return } ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetManagedDelegateType( true )}" );
+					string managedArgss = $"{string.Join( ", ", managedArgs )}";
+
+					WriteLine( $"(void*) (g_callbackFunctions[{i}])," );
+					i++;
+				}
+				EndBlock( ";" );
+			}
+
+			i = 0;
+
+
+			/*
+			{
+				int c = definitions.Classes.Where( x => x.Native == true ).Where( x => !ShouldSkip( x ) ).Count();
+				WriteLine();
+				WriteLine( $"var structSizes = new int[]" );
+				StartBlock( null );
+
+				foreach ( Struct s in definitions.Structs )
+				{
+					if ( ShouldSkip( s ) )
 					{
 						continue;
 					}
 
-					string namespc = $"{c.ManagedNamespace}.{c.ManagedName}".Trim( '.' );
+					string size_of = $"sizeof( {s.ManagedNameWithNamespace} )";
 
-					Class bc = c.BaseClass;
-
-					while ( bc != null )
-					{
-						Class subclass = bc;
-
-						WriteLine( $"{namespc}.{InternalNative}.From_{subclass.ManagedName}_To_{c.ManagedName} = (delegate* unmanaged[SuppressGCTransition]< IntPtr, IntPtr >) nativeFunctions[{i++}];" );
-						WriteLine( $"{namespc}.{InternalNative}.To_{subclass.ManagedName}_From_{c.ManagedName} = (delegate* unmanaged[SuppressGCTransition]< IntPtr, IntPtr >) nativeFunctions[{i++}];" );
-
-						bc = bc.BaseClass;
-					}
-
-					foreach ( Function f in c.Functions )
-					{
-						IEnumerable<string> managedArgs = c.SelfArg( false, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetManagedDelegateType( false )}" ).Concat( new[] { f.Return.GetManagedDelegateType( true ) } );
-						string managedArgss = $"{string.Join( ", ", managedArgs )}";
-
-						string nogc = "";
-
-						if ( f.IsNoGC )
-						{
-							nogc = "[SuppressGCTransition]";
-						}
-
-						WriteLine( $"{namespc}.{InternalNative}.{f.MangledName} = (delegate* unmanaged{nogc}< {managedArgss} >) nativeFunctions[{i++}];" );
-					}
-
-					foreach ( Variable f in c.Variables )
-					{
-						WriteLine( $"{namespc}.{InternalNative}.Get__{f.MangledName} = (delegate* unmanaged[SuppressGCTransition]<IntPtr, {f.Return.GetManagedDelegateType( true )}>)( nativeFunctions[{i++}] );" );
-						WriteLine( $"{namespc}.{InternalNative}.Set__{f.MangledName} = (delegate* unmanaged[SuppressGCTransition]<IntPtr, {f.Return.GetManagedDelegateType( true )}, void>)( nativeFunctions[{i++}] );" );
-					}
+					WriteLine( $"{size_of}," );
+					i++;
 				}
 
-				EndBlock();
-				StartBlock( "catch ( System.Exception ___e )" );
-				{
-					WriteLine( "onError( $\"{___e.Message}\\n\\n{___e.StackTrace}\" );" );
-				}
-				EndBlock();
-
-
-				WriteLine( "_initialized = true;" );
+				EndBlock( ";" );
 			}
-			EndBlock();
+			*/
 
-			StartBlock( "internal static void Free()" );
+			WriteLine();
+			WriteLine( "int iStructSizes[149]={24,1,16,2,24,4,0x11,4,4,3,4,8,0x14,0x1c,0x28,4,4,0x10,4,4,8,4,8,4,4,4,4,4,0x10,4,4,4,0xc,0xc,0x20,0x2dc,4,0x10,0x288,0x101,0x40,4,0x60,0x2c,0x20,4,4,4,4,8,8,4,4,4,4,8,4,4,1,4,4,0x28,0x28,0x88,0x78,4,4,0x28,4,4,4,4,4,4,0xc,0x10,0x10,0x18,4,4,4,8,4,1,4,0x30,4,8,4,4,8,4,4,1,0x1c,200,0x88,0x1c,0x10,1,4,4,4,8,0x4c,4,4,4,4,0x2c,4,0x1c,0x74,0x20,0x78,4,8,0x2c,4,4,4,4,0xc,8,0x10,8,0x14,4,4,0x40,4,1,0x18,4,8,4,4,4,4,4,4,8,8,4,4,4,8,4,};");
+			WriteLine( $"igen_{definitions.Ident}( 48688, managedFunctions, g_nativeFunctions, iStructSizes );" );
+
+			i = 1;
+
+
+			i = 1;
+		
+
+			WriteLine( $"g_bIs{definitions.Ident}Initialized = true;" );
+		}
+		EndBlock();
+
+		i = 1;
+		foreach ( Class c in definitions.Classes.Where( x => x.Native == true ) )
+		{
+			if ( ShouldSkip( c ) )
 			{
-				WriteLine( "if ( _nativeLibraryHandle == IntPtr.Zero ) return;" );
-				WriteLine( "NativeLibrary.Free( _nativeLibraryHandle );" );
-				WriteLine( "_nativeLibraryHandle = IntPtr.Zero;" );
-				WriteLine( "_initialized = false;" );
+				continue;
 			}
-			EndBlock();
+
+			string namespc = $"{c.ManagedNamespace}.{c.ManagedName}".Trim( '.' );
+
+			Class bc = c.BaseClass;
+
+			if (c.NativeNameWithNamespace == "CUtlVector<float>")
+				WriteLine( $"template <>" );
+			if (c.NativeNameWithNamespace == "CUtlVector<HRenderTexture>")
+				WriteLine( $"template <>" );
+			if (c.NativeNameWithNamespace == "CUtlVector<uint32>")
+				WriteLine( $"template <>" );
+			if (c.NativeNameWithNamespace == "CUtlVector<Vector>")
+				WriteLine( $"template <>" );
+			if (c.NativeNameWithNamespace == "CUtlVector<PhysicsTrace::Result>")
+				WriteLine( $"template <>" );
+			if (c.NativeNameWithNamespace == "CUtlVector<CUtlString>")
+				WriteLine( $"template <>" );
+
+			if (c.NativeNameWithNamespace =="PhysicsTrace")
+				StartBlock( $"class PhysicsTrace_" );
+			else if (c.NativeNameWithNamespace =="global") {}
+			else if (c.NativeNameWithNamespace =="globalSteam") {}
+			else
+				StartBlock( $"class {c.NativeNameWithNamespace}" );
+
+			if (c.NativeNameWithNamespace =="global") {}
+			else if (c.NativeNameWithNamespace =="globalSteam") {}
+			else {
+				WriteLine( $"public:" );
+				WriteLine( $"void *m_pSelf;" );
+				StartBlock( $"inline operator {c.NativeNameWithNamespace}*()" );
+				WriteLine($"return ({c.NativeNameWithNamespace}*)m_pSelf;");
+				EndBlock();
+			}
+
+			/*
+			   while ( bc != null )
+			   {
+			   Class subclass = bc;
+
+			   WriteLine( $"{namespc}.{InternalNative}.From_{subclass.ManagedName}_To_{c.ManagedName} = (delegate* unmanaged[SuppressGCTransition]< IntPtr, IntPtr >) nativeFunctions[{i++}];" );
+			   WriteLine( $"{namespc}.{InternalNative}.To_{subclass.ManagedName}_From_{c.ManagedName} = (delegate* unmanaged[SuppressGCTransition]< IntPtr, IntPtr >) nativeFunctions[{i++}];" );
+
+			   bc = bc.BaseClass;
+			   }
+			   */
+			while ( bc != null )
+			{
+				Class subclass = bc;
+
+				WriteLine( $"//{namespc}.{InternalNative}.From_{subclass.ManagedName}_To_{c.ManagedName} = (delegate* unmanaged[SuppressGCTransition]< IntPtr, IntPtr >) nativeFunctions[{i++}];" );
+				WriteLine( $"//{namespc}.{InternalNative}.To_{subclass.ManagedName}_From_{c.ManagedName} = (delegate* unmanaged[SuppressGCTransition]< IntPtr, IntPtr >) nativeFunctions[{i++}];" );
+
+				bc = bc.BaseClass;
+			}
+
+			foreach ( Function f in c.Functions )
+			{
+				IEnumerable<string> managedArgs = c.SelfArg( false, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetManagedDelegateType( false )}" ).Concat( new[] { f.Return.GetManagedDelegateType( true ) } );
+				string managedArgss = $"{string.Join( ", ", managedArgs )}";
+
+				string nogc = "";
+
+				if ( f.IsNoGC )
+				{
+					nogc = "[SuppressGCTransition]";
+				}
+
+				string varNamePrepend = "";
+				if ( f.Body != null )
+				{
+					varNamePrepend = "__";
+				}
+
+				IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument && x.Name != "self").Select( x => $"{x.GetNativeDelegateType( true )} {x.Name}" );
+				string nativeArgS = string.Join( ", ", nativeArgs );
+				IEnumerable<string> nativeArgsSelf = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetNativeDelegateType( true )} {varNamePrepend}{x.Name}" );
+				string nativeArgSelfS = string.Join( ", ", nativeArgsSelf );
+
+				IEnumerable<string> args = f.Parameters.Select( x => x.Name ).Where( x => x != null );
+
+				// Constructor
+				if ( f.Special.Contains( "new" ) )
+				{
+					StartBlock( $"{c.NativeNameWithNamespace.Replace("fpxr::","")}({nativeArgS}) " );
+					string argsS = string.Join( ", ", args );
+					WriteLine( $"m_pSelf = ((void*(*)({nativeArgSelfS}))g_nativeFunctions[{i++}])({argsS});" );
+				}
+				else
+				{
+					if (i==1768)
+					{
+						i++;
+						continue;
+					}
+					// General function calls
+					if (f.Static)
+						WriteLine("static");
+					StartBlock( $"inline {f.Return.GetNativeDelegateType( false )} {f.Name}({nativeArgS}) " );
+					if (!(f.Static || c.Static))
+					{
+						nativeArgsSelf = nativeArgsSelf.Prepend("void*");
+						args = args.Prepend("m_pSelf");
+					}
+					string argsS = string.Join( ", ", args );
+					if (!f.Return.IsVoid)
+						WriteLine("return");
+					WriteLine( $"(({f.Return.GetNativeDelegateType( false )}(*)({nativeArgSelfS}))g_nativeFunctions[{i++}])({argsS});" );
+				}
+				EndBlock();
+			}
+
+			foreach ( Variable f in c.Variables )
+			{
+				WriteLine( $"RW_VAR({f.Return.GetNativeDelegateType( false )},{f.Name},{c.NativeNameWithNamespace},g_nativeFunctions[{i++}],g_nativeFunctions[{i++}]);" );
+			}
+			if (c.NativeNameWithNamespace == "global") {}
+			else if (c.NativeNameWithNamespace == "globalSteam") {}
+			else
+				EndBlock(";");
+		}
+
+
+		StartBlock( $"inline void {definitions.Ident}Free()" );
+		{
+			WriteLine( $"if ( g_p{definitions.Ident}Library == 0 ) return;" );
+			WriteLine( $"FreeLibrary( (HMODULE)g_p{definitions.Ident}Library );" );
+			WriteLine( $"g_p{definitions.Ident}Library = 0;" );
+			WriteLine( $"g_bIs{definitions.Ident}Initialized = false;" );
 		}
 		EndBlock();
 
@@ -273,9 +384,11 @@ internal partial class ManagerWriter : BaseWriter
 
 	private void ErrorFunction()
 	{
+		/*
 		WriteLine( "[UnmanagedFunctionPointer( CallingConvention.Cdecl )]" );
 		WriteLine( "internal delegate void _ErrorFunction( string message );" );
 		WriteLine();
+		*/
 	}
 
 	private void ManagedInit()
