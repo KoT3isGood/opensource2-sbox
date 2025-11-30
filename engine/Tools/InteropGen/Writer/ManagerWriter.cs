@@ -335,7 +335,7 @@ internal partial class ManagerWriter : BaseWriter
 						continue;
 					}
 					// General function calls
-					if (f.Static)
+					if ((f.Static || c.Static)&&!c.NativeNameWithNamespace.StartsWith("g_"))
 						WriteLine("static");
 					StartBlock( $"inline {f.Return.GetNativeDelegateType( false )} {f.Name}({nativeArgS}) " );
 					if (!(f.Static || c.Static))
