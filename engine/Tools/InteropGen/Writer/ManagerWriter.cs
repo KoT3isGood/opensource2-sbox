@@ -109,7 +109,7 @@ internal partial class ManagerWriter : BaseWriter
 		WriteLine("A(*m_ReadOp)(Parent*);");
 		WriteLine("void(*m_WriteOp)(Parent*, A);");
 		WriteLine("public:");
-		StartBlock( $"RWVariable(void* WriteOp, void* ReadOp, Parent *parent)" );
+		StartBlock( $"RWVariable(void* ReadOp, void* WriteOp, Parent *parent)" );
 		WriteLine("m_ReadOp = (A(*)(Parent*))ReadOp;");
 		WriteLine("m_WriteOp = (void(*)(Parent*, A))WriteOp;");
 		WriteLine("m_parent = parent;");
