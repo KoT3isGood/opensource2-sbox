@@ -115,11 +115,11 @@ internal partial class ManagerWriter : BaseWriter
 		WriteLine("m_parent = parent;");
 		EndBlock();
 		StartBlock( $"inline RWVariable& operator = (const A& other)" );
-		WriteLine("m_WriteOp( m_parent , other);");
+		WriteLine("m_WriteOp( (Parent*)m_parent->m_pSelf , other);");
 		WriteLine("return *this;");
 		EndBlock();
 		StartBlock( $"inline operator A()" );
-		WriteLine("return m_ReadOp( m_parent );");
+		WriteLine("return m_ReadOp( (Parent*)m_parent->m_pSelf );");
 		EndBlock();
 		EndBlock(";");
 		WriteLine("#define RW_VAR(type, name, parent, readop, writeop) RWVariable<type, parent> name{readop, writeop,this};");
@@ -220,7 +220,7 @@ internal partial class ManagerWriter : BaseWriter
 
 			WriteLine();
 			WriteLine( "int iStructSizes[149]={24,1,16,2,24,4,0x11,4,4,3,4,8,0x14,0x1c,0x28,4,4,0x10,4,4,8,4,8,4,4,4,4,4,0x10,4,4,4,0xc,0xc,0x20,0x2dc,4,0x10,0x288,0x101,0x40,4,0x60,0x2c,0x20,4,4,4,4,8,8,4,4,4,4,8,4,4,1,4,4,0x28,0x28,0x88,0x78,4,4,0x28,4,4,4,4,4,4,0xc,0x10,0x10,0x18,4,4,4,8,4,1,4,0x30,4,8,4,4,8,4,4,1,0x1c,200,0x88,0x1c,0x10,1,4,4,4,8,0x4c,4,4,4,4,0x2c,4,0x1c,0x74,0x20,0x78,4,8,0x2c,4,4,4,4,0xc,8,0x10,8,0x14,4,4,0x40,4,1,0x18,4,8,4,4,4,4,4,4,8,8,4,4,4,8,4,};");
-			WriteLine( $"igen_{definitions.Ident}( 64712, managedFunctions, g_nativeFunctions, iStructSizes );" );
+			WriteLine( $"igen_{definitions.Ident}( g_sHash, managedFunctions, g_nativeFunctions, iStructSizes );" );
 
 			i = 1;
 
