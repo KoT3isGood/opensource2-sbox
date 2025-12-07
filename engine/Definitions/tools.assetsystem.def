@@ -12,9 +12,9 @@ exceptions	"Sandbox.Interop.BindingException"
 namespace "Managed.SourceAssetSytem"
 
 // Paths are relative to the def file
-cpp "../../src/assetsystem/interop.assetsystem.cpp"
-hpp "../../src/assetsystem/interop.assetsystem.h"
-cs	"../Sandbox.Tools/Interop.AssetSystem.cs"
+cpp "../../../generated/interop.assetsystem.cpp"
+hpp "../../../generated/interop.assetsystem.h"
+cs	"../../../public/assetsystem/assetsystem.h"
 
 include "tier3"
 include "common/*"

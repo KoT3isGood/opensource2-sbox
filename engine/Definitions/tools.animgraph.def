@@ -12,9 +12,9 @@ exceptions	"Sandbox.Interop.BindingException"
 namespace "Managed.SourceAnimgraph"
 
 // Paths are relative to the def file
-cpp "../../src/tools/animgraph_editor/interop.animgraph.cpp"
-hpp "../../src/tools/animgraph_editor/interop.animgraph.h"
-cs	"../Sandbox.Tools/Interop.Animgraph.cs"
+cpp "../../../generated/interop.animgraph.cpp"
+hpp "../../../generated/interop.animgraph.h"
+cs	"../../../public/animgraph/animgraph.h"
 
 include "tier3"
 include "common/*"

@@ -12,9 +12,9 @@ exceptions	"Sandbox.Interop.BindingException"
 namespace "Managed.SourceModelDoc"
 
 // Paths are relative to the def file
-cpp "../../src/tools/modeldoc_editor/interop.modeldoc.cpp"
-hpp "../../src/tools/modeldoc_editor/interop.modeldoc.h"
-cs	"../Sandbox.Tools/Interop.ModelDoc.cs"
+cpp "../../../generated/interop.modeldoc.cpp"
+hpp "../../../generated/interop.modeldoc.h"
+cs	"../../../public/modeldoc/modeldoc.h"
 
 pch "modeldoc_editor_pch.h"
 

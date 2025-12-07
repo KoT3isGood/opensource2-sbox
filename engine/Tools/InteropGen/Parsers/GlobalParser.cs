@@ -133,6 +133,7 @@ internal class GlobalParser : BaseParser
 		string dir = Path.GetDirectoryName( str ) ?? "";
 		string baseName = Path.GetFileNameWithoutExtension( str );
 
+		/*
 		if ( OperatingSystem.IsLinux() )
 		{
 			str = Path.Combine( dir, $"lib{baseName}.so" );
@@ -141,6 +142,7 @@ internal class GlobalParser : BaseParser
 		{
 			str = Path.Combine( dir, $"lib{baseName}.dylib" );
 		}
+		*/
 
 		definition.NativeDll = str.Trim();
 	}

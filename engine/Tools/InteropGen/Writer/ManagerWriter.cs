@@ -13,8 +13,8 @@ internal partial class ManagerWriter : BaseWriter
 	public override void Generate()
 	{
 		Header();
-		WriteLine( "#ifndef ENGINE_GEN_H" );
-		WriteLine( "#define ENGINE_GEN_H" );
+		WriteLine( $"#ifndef {definitions.Ident}_GEN_H" );
+		WriteLine( $"#define {definitions.Ident}_GEN_H" );
 
 		HelperFunctions();
 
@@ -26,7 +26,7 @@ internal partial class ManagerWriter : BaseWriter
 		//Exports();
 		NativeInterop();
 
-		WriteLine( "#endif ENGINE_GEN_H" );
+		WriteLine( $"#endif" );
 	}
 
 	private void Header()
@@ -102,27 +102,12 @@ internal partial class ManagerWriter : BaseWriter
 		WriteLine( "#define CC" );
 		WriteLine( "#endif" );
 		WriteLine();
-		WriteLine("template <typename A, typename Parent>");
-		StartBlock( $"class RWVariable" );
-		WriteLine("private:");
-		WriteLine("Parent *m_parent;");
-		WriteLine("A(*m_ReadOp)(Parent*);");
-		WriteLine("void(*m_WriteOp)(Parent*, A);");
-		WriteLine("public:");
-		StartBlock( $"RWVariable(void* ReadOp, void* WriteOp, Parent *parent)" );
-		WriteLine("m_ReadOp = (A(*)(Parent*))ReadOp;");
-		WriteLine("m_WriteOp = (void(*)(Parent*, A))WriteOp;");
-		WriteLine("m_parent = parent;");
-		EndBlock();
-		StartBlock( $"inline RWVariable& operator = (const A& other)" );
-		WriteLine("m_WriteOp( (Parent*)m_parent->m_pSelf , other);");
-		WriteLine("return *this;");
-		EndBlock();
-		StartBlock( $"inline operator A()" );
-		WriteLine("return m_ReadOp( (Parent*)m_parent->m_pSelf );");
-		EndBlock();
-		EndBlock(";");
 		WriteLine("#define RW_VAR(type, name, parent, readop, writeop) RWVariable<type, parent> name{readop, writeop,this};");
+		WriteLine("#define ConVar _ConVar");
+		WriteLine("#define ConCommand _ConCommand");
+		WriteLine("#define CUtlBuffer _CUtlBuffer");
+		WriteLine("#define CUtlString _CUtlString");
+		WriteLine("#define CUtlVector _CUtlVector");
 
 		WriteLine();
 		{
@@ -149,8 +134,9 @@ internal partial class ManagerWriter : BaseWriter
 			c += 1;
 
 			WriteLine();
-			WriteLine( $"extern void *g_nativeFunctions[{c}];" );
-			WriteLine( $"extern void *g_callbackFunctions[80];" );
+			WriteLine( $"extern void *g_{definitions.Ident}_nativeFunctions[{c}];" );
+			WriteLine( $"extern void *g_{definitions.Ident}_callbackFunctions[{imports.Count()}];" );
+			WriteLine( $"extern int g_{definitions.Ident}_iStructSizes[{definitions.Structs.Count()}];" );
 		}
 
 		WriteLine( "typedef int(*FnBindingsImportDelegate)( int hash, void* imports, void* exports, int* structSizes );" );
@@ -162,7 +148,7 @@ internal partial class ManagerWriter : BaseWriter
 			WriteLine( $"if ( g_bIs{definitions.Ident}Initialized ) return;" );
 			WriteLine();
 
-			WriteLine( $"g_p{definitions.Ident}Library = LoadLibraryA(\"engine2.dll\");" );
+			WriteLine( $"g_p{definitions.Ident}Library = LoadLibraryA(\"{definitions.NativeDll}\");" );
 			WriteLine( $"if(!g_p{definitions.Ident}Library)" );
 			WriteLine( $"	_exit(1);" );
 
@@ -185,7 +171,7 @@ internal partial class ManagerWriter : BaseWriter
 					IEnumerable<string> managedArgs = c.SelfArg( false, f.Static ).Concat( f.Parameters ).Concat( new[] { f.Return } ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetManagedDelegateType( true )}" );
 					string managedArgss = $"{string.Join( ", ", managedArgs )}";
 
-					WriteLine( $"(void*) (g_callbackFunctions[{i}])," );
+					WriteLine( $"(void*) (g_{definitions.Ident}_callbackFunctions[{i}])," );
 					i++;
 				}
 				EndBlock( ";" );
@@ -219,8 +205,10 @@ internal partial class ManagerWriter : BaseWriter
 			*/
 
 			WriteLine();
-			WriteLine( "int iStructSizes[149]={24,1,16,2,24,4,0x11,4,4,3,4,8,0x14,0x1c,0x28,4,4,0x10,4,4,8,4,8,4,4,4,4,4,0x10,4,4,4,0xc,0xc,0x20,0x2dc,4,0x10,0x288,0x101,0x40,4,0x60,0x2c,0x20,4,4,4,4,8,8,4,4,4,4,8,4,4,1,4,4,0x28,0x28,0x88,0x78,4,4,0x28,4,4,4,4,4,4,0xc,0x10,0x10,0x18,4,4,4,8,4,1,4,0x30,4,8,4,4,8,4,4,1,0x1c,200,0x88,0x1c,0x10,1,4,4,4,8,0x4c,4,4,4,4,0x2c,4,0x1c,0x74,0x20,0x78,4,8,0x2c,4,4,4,4,0xc,8,0x10,8,0x14,4,4,0x40,4,1,0x18,4,8,4,4,4,4,4,4,8,8,4,4,4,8,4,};");
-			WriteLine( $"igen_{definitions.Ident}( g_sHash, managedFunctions, g_nativeFunctions, iStructSizes );" );
+			if (definitions.Ident != "hammer")
+				WriteLine( $"igen_{definitions.Ident}( *(unsigned short*)(((uint64_t)igen_{definitions.Ident})+23), managedFunctions, g_{definitions.Ident}_nativeFunctions, g_{definitions.Ident}_iStructSizes );" );
+			else
+				WriteLine( $"igen_{definitions.Ident}( *(unsigned short*)(((uint64_t)igen_{definitions.Ident})+8), managedFunctions, g_{definitions.Ident}_nativeFunctions, g_{definitions.Ident}_iStructSizes );" );
 
 			i = 1;
 
@@ -325,7 +313,7 @@ internal partial class ManagerWriter : BaseWriter
 				{
 					StartBlock( $"{c.NativeNameWithNamespace.Replace("fpxr::","")}({nativeArgS}) " );
 					string argsS = string.Join( ", ", args );
-					WriteLine( $"m_pSelf = ((void*(*)({nativeArgSelfS}))g_nativeFunctions[{i++}])({argsS});" );
+					WriteLine( $"m_pSelf = ((void*(*)({nativeArgSelfS}))g_{definitions.Ident}_nativeFunctions[{i++}])({argsS});" );
 				}
 				else
 				{
@@ -346,14 +334,14 @@ internal partial class ManagerWriter : BaseWriter
 					string argsS = string.Join( ", ", args );
 					if (!f.Return.IsVoid)
 						WriteLine("return");
-					WriteLine( $"(({f.Return.GetNativeDelegateType( false )}(*)({nativeArgSelfS}))g_nativeFunctions[{i++}])({argsS});" );
+					WriteLine( $"(({f.Return.GetNativeDelegateType( false )}(*)({nativeArgSelfS}))g_{definitions.Ident}_nativeFunctions[{i++}])({argsS});" );
 				}
 				EndBlock();
 			}
 
 			foreach ( Variable f in c.Variables )
 			{
-				WriteLine( $"RW_VAR({f.Return.GetNativeDelegateType( false )},{f.Name},{c.NativeNameWithNamespace},g_nativeFunctions[{i++}],g_nativeFunctions[{i++}]);" );
+				WriteLine( $"RW_VAR({f.Return.GetNativeDelegateType( false )},{f.Name},{c.NativeNameWithNamespace},g_{definitions.Ident}_nativeFunctions[{i++}],g_{definitions.Ident}_nativeFunctions[{i++}]);" );
 			}
 			if (c.NativeNameWithNamespace == "global") {}
 			else if (c.NativeNameWithNamespace == "globalSteam") {}
@@ -361,6 +349,11 @@ internal partial class ManagerWriter : BaseWriter
 				EndBlock(";");
 		}
 
+		WriteLine("#undef ConVar");
+		WriteLine("#undef ConCommand");
+		WriteLine("#undef CUtlBuffer");
+		WriteLine("#undef CUtlString");
+		WriteLine("#undef CUtlVector");
 
 		StartBlock( $"inline void {definitions.Ident}Free()" );
 		{

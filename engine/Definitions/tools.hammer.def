@@ -14,9 +14,9 @@ exceptions	"Sandbox.Interop.BindingException"
 namespace "Managed.SourceHammer"
 
 // Paths are relative to the def file
-cpp "../../src/tools/hammer/interop.hammer.cpp"
-hpp "../../src/tools/hammer/interop.hammer.h"
-cs	"../Sandbox.Tools/Interop.Hammer.cs"
+cpp "../../../generated/interop.hammer.cpp"
+hpp "../../../generated/interop.hammer.h"
+cs	"../../../public/hammer/hammer.h"
 
 pch "hammerpch.h"
 

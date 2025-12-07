@@ -9,9 +9,9 @@ exceptions	"Sandbox.Interop.BindingException"
 namespace "Managed.SourceTools"
 
 // Paths are relative to the def file
-cpp "../../src/toolframework2/interop.tools.cpp"
-hpp "../../src/toolframework2/interop.tools.h"
-cs	"../Sandbox.Tools/Interop.Tools.cs"
+cpp "../../../generated/interop.tools.cpp"
+hpp "../../../generated/interop.tools.h"
+cs	"../../../public/sourcetools/sourcetools.h"
 
 pch "cbase.h"
 
